@@ -36,16 +36,36 @@ class MusicHUD:
         try:
             hwnd = ctypes.windll.user32.FindWindowW(None, "Music HUD")
             if hwnd:
+                WS_CAPTION = 0x00C00000
+                WS_THICKFRAME = 0x00040000
+                WS_BORDER = 0x00800000
+                WS_EX_TOOLWINDOW = 0x00000080
+                WS_EX_TOPMOST = 0x00000008
+                WS_EX_APPWINDOW = 0x00040000
+
                 style = ctypes.windll.user32.GetWindowLongW(hwnd, -16)
-                new_style = style & ~0x00C00000 
-                new_style = new_style & ~0x00040000 
-                new_style = new_style & ~0x00080000 
+                new_style = style & ~WS_CAPTION
+                new_style = new_style & ~WS_THICKFRAME
+                new_style = new_style & ~WS_BORDER
                 ctypes.windll.user32.SetWindowLongW(hwnd, -16, new_style)
-                
+
                 ex_style = ctypes.windll.user32.GetWindowLongW(hwnd, -20)
-                ctypes.windll.user32.SetWindowLongW(hwnd, -20, ex_style | 0x00000080 | 0x00000008)
-                
-                ctypes.windll.user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0, 0x0020 | 0x0002 | 0x0001 | 0x0004)
+                ex_style = (ex_style | WS_EX_TOOLWINDOW | WS_EX_TOPMOST) & ~WS_EX_APPWINDOW
+                ctypes.windll.user32.SetWindowLongW(hwnd, -20, ex_style)
+
+                SWP_FRAMECHANGED = 0x0020
+                SWP_NOMOVE = 0x0002
+                SWP_NOSIZE = 0x0001
+                SWP_NOZORDER = 0x0004
+                ctypes.windll.user32.SetWindowPos(
+                    hwnd,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER,
+                )
         except Exception as e:
             logger.warning(f"Win32 Brute Force Error: {e}")
 
@@ -71,6 +91,17 @@ class MusicHUD:
                 0,
                 0,
                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_SHOWWINDOW,
+            )
+
+            # Reaplica no topo para reduzir casos em que a janela nasce atras de outra.
+            ctypes.windll.user32.SetWindowPos(
+                hwnd,
+                HWND_TOPMOST,
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW,
             )
         except Exception as e:
             logger.warning(f"Erro ao reforcar topmost: {e}")
@@ -271,6 +302,7 @@ class MusicHUD:
         self.page.window.top = -32000
         self.page.window.visible = True
         self.page.window.opacity = 0.0
+        self._force_window_stealth()
         self.apply_layout()
         self.page.window.opacity = 1.0
         self.page.update()

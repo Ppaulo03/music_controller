@@ -30,8 +30,11 @@ class SystemTrayManager:
             self.on_open_settings()
         
         try:
-            # Tenta rodar o script de configurações como um processo independente
-            subprocess.Popen([sys.executable, "-m", "src.ui.settings"])
+            # Em build, abre o próprio executável em modo de configurações.
+            if getattr(sys, "frozen", False):
+                subprocess.Popen([sys.executable, "--settings"])
+            else:
+                subprocess.Popen([sys.executable, "-m", "src.ui.settings"])
             logger.info("Janela de configurações iniciada.")
         except Exception as e:
             logger.error(f"Erro ao abrir configurações: {e}")
@@ -90,3 +93,8 @@ class SystemTrayManager:
         tray_thread = threading.Thread(target=self._run_icon, daemon=True)
         tray_thread.start()
         logger.info("System Tray inicializado.")
+
+    def stop(self) -> None:
+        """Interrompe o ícone da bandeja, se estiver ativo."""
+        if self.icon:
+            self.icon.stop()

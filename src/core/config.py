@@ -1,7 +1,9 @@
 import json
 import logging
 import os
-from dataclasses import asdict, dataclass, field
+import sys
+from pathlib import Path
+from dataclasses import asdict, dataclass, field, fields as dataclass_fields
 from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
@@ -15,6 +17,8 @@ class AppConfig:
     hud_display_time: int = 3
     hud_monitor: int = 0
     hud_position: str = "bottom_right"
+    log_level: str = "INFO"
+    log_file: str = "wyrmplayer.log"
     # Atalhos Globais
     hotkeys: Dict[str, str] = field(
         default_factory=lambda: {
@@ -40,7 +44,14 @@ class ConfigManager:
     """Gerenciador de persistência para configurações em JSON."""
 
     def __init__(self, config_file: str = "settings.json") -> None:
-        self.config_path = config_file
+        if os.path.isabs(config_file):
+            self.config_path = config_file
+        else:
+            if getattr(sys, "frozen", False):
+                base_dir = Path(sys.executable).resolve().parent
+            else:
+                base_dir = Path(__file__).resolve().parents[2]
+            self.config_path = str((base_dir / config_file).resolve())
         self.config = self.load()
 
     def load(self) -> AppConfig:
@@ -56,7 +67,9 @@ class ConfigManager:
         try:
             with open(self.config_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                return AppConfig(**data)
+                allowed_keys = {f.name for f in dataclass_fields(AppConfig)}
+                filtered_data = {k: v for k, v in data.items() if k in allowed_keys}
+                return AppConfig(**filtered_data)
         except Exception as e:
             logger.error(f"Erro ao carregar configurações: {e}. Usando padrões.")
             return AppConfig()

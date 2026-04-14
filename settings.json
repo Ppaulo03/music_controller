@@ -2,7 +2,8 @@
     "volume_step": 5,
     "hud_display_time": 3,
     "hud_monitor": 0,
-    "hud_position": "bottom_right",
+    "hud_position": "center",
+    "log_level": "INFO",
     "hotkeys": {
         "play_pause": "alt gr+p",
         "next_track": "alt gr+right",

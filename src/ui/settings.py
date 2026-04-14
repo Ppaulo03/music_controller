@@ -25,6 +25,25 @@ def main(page: ft.Page) -> None:
     hud_time = ft.Slider(
         min=1, max=10, divisions=9, label="{value}s", value=cfg.hud_display_time
     )
+    log_level = ft.Dropdown(
+        label="Nível de log",
+        value=(cfg.log_level or "INFO").upper(),
+        options=[
+            ft.DropdownOption(key="DEBUG", text="DEBUG"),
+            ft.DropdownOption(key="INFO", text="INFO"),
+            ft.DropdownOption(key="WARNING", text="WARNING"),
+            ft.DropdownOption(key="ERROR", text="ERROR"),
+            ft.DropdownOption(key="CRITICAL", text="CRITICAL"),
+        ],
+        expand=True,
+    )
+    log_file = ft.TextField(
+        label="Arquivo de log",
+        value=cfg.log_file,
+        hint_text="wyrmplayer.log",
+        dense=True,
+        expand=True,
+    )
 
     # --- Hotkeys (captura) ---
     field_style = ft.InputBorder.OUTLINE
@@ -158,6 +177,8 @@ def main(page: ft.Page) -> None:
             hud_display_time=int(hud_time.value),
             hud_monitor=int(monitor_dropdown.value or 0),
             hud_position=position_dropdown.value or "bottom_right",
+            log_level=str(log_level.value or "INFO").upper(),
+            log_file=(log_file.value or "wyrmplayer.log").strip(),
             hotkeys={
                 "play_pause": (hk_play.value or "").strip(),
                 "next_track": (hk_next.value or "").strip(),
@@ -243,6 +264,9 @@ def main(page: ft.Page) -> None:
     # Sliders e switches salvam imediatamente.
     volume_step.on_change = on_live_change
     hud_time.on_change = on_live_change
+    log_level.on_change = on_live_change
+    log_level.on_select = on_live_change
+    log_file.on_change = on_live_change
     monitor_dropdown.on_select = on_live_change
     position_dropdown.on_select = on_live_change
     t_vol.on_change = on_live_change
@@ -264,6 +288,10 @@ def main(page: ft.Page) -> None:
                 volume_step,
                 ft.Text("Tempo do HUD (segundos)", size=13, color=ft.Colors.WHITE70),
                 hud_time,
+                ft.Text("Nível dos logs salvos no arquivo .log", size=13, color=ft.Colors.WHITE70),
+                log_level,
+                ft.Text("Nome do arquivo de log", size=13, color=ft.Colors.WHITE70),
+                log_file,
             ],
             spacing=10,
             tight=True,

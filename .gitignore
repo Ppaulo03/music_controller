@@ -1,10 +1,44 @@
-# Python-generated files
+# Byte-compiled / cache
 __pycache__/
-*.py[oc]
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Packaging / build artifacts
 build/
 dist/
 wheels/
-*.egg-info
+*.egg-info/
+*.spec.bak
 
-# Virtual environments
-.venv
+# PyInstaller outputs
+*.manifest
+*.pkg
+
+# Logs and runtime files
+*.log
+WyrmPlayerControl.lock
+
+# Python tooling
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Local Python/version manager files
+.python-version
+
+# IDE/editor files
+.vscode/
+.idea/
+*.code-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
