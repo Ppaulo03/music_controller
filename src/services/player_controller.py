@@ -1,0 +1,47 @@
+import logging
+
+from src.core.state import AppState
+from src.core.websocket import MusicWebSocketServer
+
+logger = logging.getLogger(__name__)
+
+
+class PlayerController:
+    """Lógica de processamento de comandos de mídia."""
+
+    def __init__(self, state: AppState, server: MusicWebSocketServer) -> None:
+        self.state = state
+        self.server = server
+
+    def play_pause(self) -> None:
+        """Alterna entre reprodução e pausa."""
+        self.server.enqueue_command("playPause")
+
+    def next_track(self) -> None:
+        """Pula para a próxima música."""
+        self.server.enqueue_command("next")
+
+    def previous_track(self) -> None:
+        """Volta para a música anterior."""
+        self.server.enqueue_command("previous")
+
+    def toggle_mute(self) -> None:
+        """Alterna o estado de mute salvando o volume anterior."""
+        if not self.state.is_muted:
+            if self.state.metadata.volume > 0:
+                self.state.last_non_zero_volume = self.state.metadata.volume
+            self.server.enqueue_command("setVolume 0")
+            self.state.is_muted = True
+            logger.info(f"mute ativado (Volume salvo: {self.state.last_non_zero_volume}%)")
+        else:
+            self.server.enqueue_command(f"setVolume {self.state.last_non_zero_volume}")
+            self.state.is_muted = False
+            logger.info(f"mute desativado (Volume restaurado: {self.state.last_non_zero_volume}%)")
+
+    def adjust_volume(self, delta: int) -> None:
+        """Ajusta o volume e desmuta se necessário."""
+        if self.state.is_muted:
+            self.toggle_mute()
+
+        cmd = f"setVolume {'+' if delta > 0 else ''}{delta}"
+        self.server.enqueue_command(cmd)

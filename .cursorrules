@@ -1,0 +1,23 @@
+# Antigravity & Music Controller Rules
+
+Estas regras definem como eu (Antigravity) devo interagir com este repositório para garantir a máxima performance e qualidade.
+
+## Core Preferences
+- **Package Manager**: Use sempre o `uv`. Comandos de execução devem ser precedidos por `uv run`.
+- **Ambiente**: O ambiente virtual está em `.venv`. Não utilize `pip` globalmente.
+- **Linguagem**: O código deve ser em Inglês (variáveis, funções), mas comentários e documentação podem ser em Português se solicitado.
+
+## Python Standards
+- **Tipagem**: Use `typing` (type hints) em todas as assinaturas de funções e métodos.
+- **Linting**: Siga o padrão do `ruff`.
+- **Arquitetura**: Prefira modularização. Evite arquivos `main.py` gigantescos. Separe lógica de rede (`websockets`) de lógica de input (`keyboard`).
+
+## Tooling
+- Sempre verifique o `pyproject.toml` antes de adicionar novas dependências via `uv add`.
+- Use `uv lock` após mudanças estruturais.
+
+## Aesthetics & Design
+- Como Antigravity, priorizo o "WOW factor". Se criarmos uma interface (mesmo que via log ou web), ela deve ser visualmente impactante e premium.
+
+## Como me Pedir Tarefas
+- Você pode me pedir para "Sincronizar o ambiente" ou "Verificar integridade" e eu usarei o `uv` para garantir que tudo está correto.
