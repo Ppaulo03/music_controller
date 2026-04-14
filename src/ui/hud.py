@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class MusicHUD:
-    """Interface visual (HUD) expandida com duração da música e progresso."""
+    """Interface visual (HUD) completa com status de reprodução, progresso e volume."""
 
     def __init__(self, state: AppState) -> None:
         self.state = state
@@ -45,7 +45,7 @@ class MusicHUD:
             logger.warning(f"Win32 Brute Force Error: {e}")
 
     async def main(self, page: ft.Page) -> None:
-        """Configuração da página Flet com suporte a metadados estendidos."""
+        """Configuração da página Flet com todos os indicadores visuais."""
         self.page = page
         self.page.title = "Music HUD"
         
@@ -57,7 +57,6 @@ class MusicHUD:
         self.page.window.skip_task_bar = True
         self.page.window.resizable = False
         
-        # Aumentamos um pouco a altura para acomodar o progresso
         width = 450
         height = 160 
         self.page.window.width = width
@@ -112,6 +111,12 @@ class MusicHUD:
             color=ft.Colors.WHITE54,
         )
 
+        self.status_icon = ft.Icon(
+            ft.Icons.PLAY_ARROW if self.state.metadata.status == "Tocando" else ft.Icons.PAUSE,
+            size=16,
+            color=ft.Colors.AMBER if self.state.metadata.status == "Tocando" else ft.Colors.WHITE54,
+        )
+
         self.volume_indicator = ft.Row(
             [
                 ft.Icon(ft.Icons.VOLUME_UP, size=12, color=ft.Colors.WHITE54),
@@ -133,11 +138,14 @@ class MusicHUD:
                             self.track_progress_bar,
                             ft.Row(
                                 [
+                                    self.status_icon,
                                     self.time_text,
                                     ft.Container(expand=True),
                                     self.volume_indicator,
                                 ],
-                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                                alignment=ft.MainAxisAlignment.START,
+                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                                spacing=10,
                             ),
                         ],
                         alignment=ft.MainAxisAlignment.CENTER,
@@ -166,7 +174,7 @@ class MusicHUD:
         self._force_window_stealth()
 
     async def update_ui(self) -> None:
-        """Atualiza a interface com metadados de tempo."""
+        """Sincroniza UI."""
         if not self.page:
             return
 
@@ -174,6 +182,11 @@ class MusicHUD:
         self.artist.value = self.state.metadata.artist or "Desconhecido"
         self.cover.src = self.state.metadata.cover or "https://via.placeholder.com/80"
         
+        # Atualiza Status de Play/Pause
+        is_playing = self.state.metadata.status == "Tocando"
+        self.status_icon.name = ft.Icons.PLAY_ARROW if is_playing else ft.Icons.PAUSE
+        self.status_icon.color = ft.Colors.AMBER if is_playing else ft.Colors.WHITE54
+
         # Atualiza Tempo e Progresso
         self.track_progress_bar.value = self.state.metadata.progress
         self.time_text.value = f"{self.state.metadata.position} / {self.state.metadata.duration}"
