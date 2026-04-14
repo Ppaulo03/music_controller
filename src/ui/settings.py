@@ -1,4 +1,5 @@
 import flet as ft
+from src.core.display import HUD_POSITION_PRESETS, list_monitors
 from src.core.config import ConfigManager, AppConfig
 
 
@@ -81,6 +82,27 @@ def main(page: ft.Page) -> None:
     t_meta = ft.Switch(label="Mudar Música", value=cfg.triggers["metadata"])
     t_play = ft.Switch(label="Pausar/Play", value=cfg.triggers["playback"])
 
+    monitors = list_monitors()
+    monitor_dropdown = ft.Dropdown(
+        label="Tela do overlay",
+        value=str(min(max(cfg.hud_monitor, 0), len(monitors) - 1)),
+        options=[
+            ft.DropdownOption(key=str(monitor.index), text=monitor.label)
+            for monitor in monitors
+        ],
+        expand=True,
+    )
+
+    position_dropdown = ft.Dropdown(
+        label="Posição do overlay",
+        value=cfg.hud_position if cfg.hud_position in HUD_POSITION_PRESETS else "bottom_right",
+        options=[
+            ft.DropdownOption(key=key, text=label)
+            for key, label in HUD_POSITION_PRESETS.items()
+        ],
+        expand=True,
+    )
+
     autosave_status = ft.Text("Salvamento automático ativo", size=12, color=ft.Colors.GREEN_300)
 
     capture_state: dict[str, object] = {"field": None, "label": ""}
@@ -134,6 +156,8 @@ def main(page: ft.Page) -> None:
         new_cfg = AppConfig(
             volume_step=int(volume_step.value),
             hud_display_time=int(hud_time.value),
+            hud_monitor=int(monitor_dropdown.value or 0),
+            hud_position=position_dropdown.value or "bottom_right",
             hotkeys={
                 "play_pause": (hk_play.value or "").strip(),
                 "next_track": (hk_next.value or "").strip(),
@@ -219,6 +243,8 @@ def main(page: ft.Page) -> None:
     # Sliders e switches salvam imediatamente.
     volume_step.on_change = on_live_change
     hud_time.on_change = on_live_change
+    monitor_dropdown.on_select = on_live_change
+    position_dropdown.on_select = on_live_change
     t_vol.on_change = on_live_change
     t_meta.on_change = on_live_change
     t_play.on_change = on_live_change
@@ -267,6 +293,24 @@ def main(page: ft.Page) -> None:
         **section_style,
     )
 
+    hud_layout_card = ft.Container(
+        content=ft.Column(
+            [
+                ft.Text("Posição do Overlay", size=24, weight=ft.FontWeight.BOLD),
+                ft.Text(
+                    "Escolha em qual tela o HUD aparece e em qual preset ele fica.",
+                    size=12,
+                    color=ft.Colors.WHITE60,
+                ),
+                monitor_dropdown,
+                position_dropdown,
+            ],
+            spacing=10,
+            tight=True,
+        ),
+        **section_style,
+    )
+
     triggers_card = ft.Container(
         content=ft.Column(
             [
@@ -300,7 +344,12 @@ def main(page: ft.Page) -> None:
                     controls=[
                         ft.Column([general_card], scroll=ft.ScrollMode.AUTO, expand=True),
                         ft.Column([hotkeys_card], scroll=ft.ScrollMode.AUTO, expand=True),
-                        ft.Column([triggers_card], scroll=ft.ScrollMode.AUTO, expand=True),
+                        ft.Column(
+                            [hud_layout_card, triggers_card],
+                            scroll=ft.ScrollMode.AUTO,
+                            expand=True,
+                            spacing=14,
+                        ),
                     ],
                 ),
             ],

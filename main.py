@@ -22,11 +22,20 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def watch_config_changes(hotkeys: HotkeyManager, state: AppState, exit_event: asyncio.Event) -> None:
+async def watch_config_changes(
+    hotkeys: HotkeyManager,
+    hud: MusicHUD,
+    state: AppState,
+    exit_event: asyncio.Event,
+) -> None:
     """Observa settings.json e recarrega atalhos automaticamente quando houver mudança."""
     settings_path = "settings.json"
     last_mtime: float | None = None
     last_hotkeys = state.config.load().hotkeys.copy()
+    last_hud_layout = (
+        state.config.load().hud_monitor,
+        state.config.load().hud_position,
+    )
 
     if os.path.exists(settings_path):
         try:
@@ -56,6 +65,13 @@ async def watch_config_changes(hotkeys: HotkeyManager, state: AppState, exit_eve
                 hotkeys.setup()
                 last_hotkeys = cfg.hotkeys.copy()
                 logger.info("Config alterada: hotkeys recarregadas automaticamente.")
+            current_hud_layout = (cfg.hud_monitor, cfg.hud_position)
+            if current_hud_layout != last_hud_layout:
+                last_hud_layout = current_hud_layout
+                logger.info("Config alterada: HUD reposicionado e exibido novamente.")
+                await hud.show_hud(display_time=cfg.hud_display_time)
+            else:
+                hud.apply_layout()
         except Exception as e:
             logger.error(f"Falha ao recarregar configuração dinâmica: {e}")
 
@@ -103,7 +119,7 @@ async def app_main(page: ft.Page) -> None:
     # 6. Inicia o servidor WebSocket
     logger.info("Iniciando Servidor WebSocket em background...")
     server_task = asyncio.create_task(server.start())
-    config_watch_task = asyncio.create_task(watch_config_changes(hotkeys, state, exit_event))
+    config_watch_task = asyncio.create_task(watch_config_changes(hotkeys, hud, state, exit_event))
 
 
     # Aguarda o sinal de saída do Tray ou cancelamento

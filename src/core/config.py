@@ -13,6 +13,8 @@ class AppConfig:
 
     volume_step: int = 5
     hud_display_time: int = 3
+    hud_monitor: int = 0
+    hud_position: str = "bottom_right"
     # Atalhos Globais
     hotkeys: Dict[str, str] = field(
         default_factory=lambda: {

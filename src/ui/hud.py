@@ -1,11 +1,11 @@
 import asyncio
 import ctypes
-from ctypes import wintypes
 import logging
 from typing import Optional
 
 import flet as ft
 
+from src.core.display import get_monitor_by_index, resolve_hud_position
 from src.core.state import AppState
 
 logger = logging.getLogger(__name__)
@@ -21,38 +21,15 @@ class MusicHUD:
         self._window_width: int = 380
         self._window_height: int = 120
 
-    def _calculate_window_size(self) -> tuple[int, int]:
+    def _calculate_window_size(self, monitor_width: int) -> tuple[int, int]:
         """Calcula tamanho seguro do HUD para não sair da tela."""
-        screen_w, _ = self._get_screen_resolution()
 
         # Mantem um HUD compacto e reduz em telas menores.
-        max_width = max(300, screen_w - 40)
+        max_width = max(300, monitor_width - 40)
         width = min(380, max_width)
         # Altura um pouco maior para comportar ultima linha (tempo/volume) sem recorte.
         height = 138
         return width, height
-
-    def _get_screen_resolution(self) -> tuple[int, int]:
-        """Obtém a resolução da tela principal."""
-        try:
-            user32 = ctypes.windll.user32
-            return user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
-        except Exception:
-            return 1920, 1080
-
-    def _get_work_area(self) -> tuple[int, int, int, int]:
-        """Obtém a área útil da tela (sem taskbar), com fallback para tela inteira."""
-        try:
-            rect = wintypes.RECT()
-            # SPI_GETWORKAREA = 0x0030
-            ok = ctypes.windll.user32.SystemParametersInfoW(0x0030, 0, ctypes.byref(rect), 0)
-            if ok:
-                return rect.left, rect.top, rect.right, rect.bottom
-        except Exception:
-            pass
-
-        screen_w, screen_h = self._get_screen_resolution()
-        return 0, 0, screen_w, screen_h
 
     def _force_window_stealth(self) -> None:
         """Arranca a barra de título e bordas via Win32 API."""
@@ -98,6 +75,28 @@ class MusicHUD:
         except Exception as e:
             logger.warning(f"Erro ao reforcar topmost: {e}")
 
+    def _get_layout(self) -> tuple[int, int, int, int]:
+        """Resolve monitor selecionado e posição do HUD a partir da configuração."""
+        cfg = self.state.config.load()
+        monitor = get_monitor_by_index(cfg.hud_monitor)
+        width, height = self._calculate_window_size(monitor.width)
+        left, top = resolve_hud_position(monitor, cfg.hud_position, width, height)
+        return width, height, left, top
+
+    def apply_layout(self) -> None:
+        """Aplica tamanho e posição atuais do HUD conforme a configuração."""
+        if not self.page:
+            return
+
+        width, height, target_left, target_top = self._get_layout()
+        self._window_width = width
+        self._window_height = height
+        self.page.window.width = width
+        self.page.window.height = height
+        self.page.window.left = target_left
+        self.page.window.top = target_top
+        self.page.update()
+
     async def main(self, page: ft.Page) -> None:
         """Configuração da página Flet com todos os indicadores visuais."""
         self.page = page
@@ -115,19 +114,7 @@ class MusicHUD:
         self.page.window.skip_task_bar = True
         self.page.window.resizable = False
         # Configurações de tamanho inicial (responsivo)
-        width, height = self._calculate_window_size()
-        self._window_width = width
-        self._window_height = height
-        self.page.window.width = width
-        self.page.window.height = height
-        
-        # Posicionamento (canto inferior direito da area util)
-        work_left, work_top, work_right, work_bottom = self._get_work_area()
-        target_left = max(work_left + 10, work_right - width - 20)
-        target_top = max(work_top + 10, work_bottom - height - 20)
-        
-        self.page.window.left = target_left
-        self.page.window.top = target_top
+        self.apply_layout()
 
         self.page.update()
 
@@ -158,7 +145,7 @@ class MusicHUD:
             max_lines=1,
         )
 
-        progress_width = max(180, width - 140)
+        progress_width = max(180, self._window_width - 140)
         self.track_progress_bar = ft.ProgressBar(
             value=self.state.metadata.progress,
             width=progress_width,
@@ -227,11 +214,6 @@ class MusicHUD:
         self.state.on_update(self.update_ui)
         
         self.page.update()
-        
-        # Força posições
-        self.page.window.left = target_left
-        self.page.window.top = target_top
-        self.page.update()
 
         await asyncio.sleep(0.5)
         self._force_window_stealth()
@@ -284,21 +266,12 @@ class MusicHUD:
         if self._hide_task:
             self._hide_task.cancel()
 
-        # Recalcula dimensoes e posicao para garantir que o HUD nao "fuja" da tela
-        width, height = self._calculate_window_size()
-        self._window_width = width
-        self._window_height = height
-        self.page.window.width = width
-        self.page.window.height = height
-        work_left, work_top, work_right, work_bottom = self._get_work_area()
-
         # Evita flash central: torna visivel fora da tela e reposiciona no mesmo ciclo.
         self.page.window.left = -32000
         self.page.window.top = -32000
         self.page.window.visible = True
         self.page.window.opacity = 0.0
-        self.page.window.left = max(work_left + 10, work_right - width - 20)
-        self.page.window.top = max(work_top + 10, work_bottom - height - 20)
+        self.apply_layout()
         self.page.window.opacity = 1.0
         self.page.update()
         self._ensure_topmost()
