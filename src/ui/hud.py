@@ -72,6 +72,32 @@ class MusicHUD:
         except Exception as e:
             logger.warning(f"Win32 Brute Force Error: {e}")
 
+    def _ensure_topmost(self) -> None:
+        """Reforça topmost no nível Win32 para evitar perda de prioridade."""
+        try:
+            hwnd = ctypes.windll.user32.FindWindowW(None, "Music HUD")
+            if not hwnd:
+                return
+
+            HWND_TOPMOST = -1
+            SWP_NOMOVE = 0x0002
+            SWP_NOSIZE = 0x0001
+            SWP_NOACTIVATE = 0x0010
+            SWP_NOOWNERZORDER = 0x0200
+            SWP_SHOWWINDOW = 0x0040
+
+            ctypes.windll.user32.SetWindowPos(
+                hwnd,
+                HWND_TOPMOST,
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_SHOWWINDOW,
+            )
+        except Exception as e:
+            logger.warning(f"Erro ao reforcar topmost: {e}")
+
     async def main(self, page: ft.Page) -> None:
         """Configuração da página Flet com todos os indicadores visuais."""
         self.page = page
@@ -209,6 +235,7 @@ class MusicHUD:
 
         await asyncio.sleep(0.5)
         self._force_window_stealth()
+        self._ensure_topmost()
 
     async def update_ui(self, major: bool = False, category: str = "") -> None:
         """Sincroniza UI. Respeita triggers e tempo de HUD configurados."""
@@ -274,6 +301,7 @@ class MusicHUD:
         self.page.window.top = max(work_top + 10, work_bottom - height - 20)
         self.page.window.opacity = 1.0
         self.page.update()
+        self._ensure_topmost()
         
         self._hide_task = asyncio.create_task(self._hide_after_delay(display_time))
 
