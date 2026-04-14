@@ -146,9 +146,16 @@ class MusicWebSocketServer:
                         # NOTA: Não setamos is_muted=True automaticamente para volume=0.
                         # Isso permite diferenciar o "zero manual" do "Mute" controlado pelo app.
 
-                    # Notifica observadores com a flag de importância
+                    # Determina a categoria da mudança para os triggers do HUD
+                    category = ""
+                    if key in ["TITLE", "ARTIST"]: category = "metadata"
+                    elif key == "VOLUME": category = "volume"
+                    elif key == "STATE": category = "playback"
+
+                    # Notifica observadores com a flag de importância e categoria
                     if self._loop:
-                        self._loop.create_task(self.state.notify(major=log_meta))
+                        self._loop.create_task(self.state.notify(major=log_meta, category=category))
+
 
                     if log_meta:
                         logger.info(

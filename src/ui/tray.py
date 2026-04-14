@@ -1,6 +1,8 @@
 import logging
+import subprocess
+import sys
 import threading
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 import pystray
 from PIL import Image, ImageDraw
@@ -8,12 +10,38 @@ from PIL import Image, ImageDraw
 logger = logging.getLogger(__name__)
 
 
-class MusicTray:
-    """Gerencia o ícone da bandeja do sistema (System Tray)."""
+class SystemTrayManager:
+    """Gerencia o ícone da bandeja e o menu de contexto."""
 
-    def __init__(self, on_exit_callback: Callable[[], Any]) -> None:
+    def __init__(
+        self, 
+        on_exit_callback: Callable[[], Any],
+        on_open_settings: Callable[[], Any],
+        on_reload_hotkeys: Callable[[], Any]
+    ) -> None:
         self.on_exit_callback = on_exit_callback
+        self.on_open_settings = on_open_settings
+        self.on_reload_hotkeys = on_reload_hotkeys
         self.icon: Optional[pystray.Icon] = None
+
+    def _open_settings(self) -> None:
+        """Abre a tela de configurações em um processo separado."""
+        if self.on_open_settings:
+            self.on_open_settings()
+        
+        try:
+            # Tenta rodar o script de configurações como um processo independente
+            subprocess.Popen([sys.executable, "-m", "src.ui.settings"])
+            logger.info("Janela de configurações iniciada.")
+        except Exception as e:
+            logger.error(f"Erro ao abrir configurações: {e}")
+
+    def _reload_hotkeys(self) -> None:
+        """Solicita ao HotkeyManager que recarregue os atalhos."""
+        logger.info("Solicitando recarregamento de atalhos...")
+        if self.on_reload_hotkeys:
+            self.on_reload_hotkeys()
+
 
     def _create_placeholder_icon(self) -> Image.Image:
         """Cria um ícone simples para a bandeja."""
@@ -36,6 +64,8 @@ class MusicTray:
         menu = pystray.Menu(
             pystray.MenuItem("Music Controller", lambda: None, enabled=False),
             pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Configurações", lambda icon, item: self._open_settings()),
+            pystray.MenuItem("Recarregar Atalhos", lambda icon, item: self._reload_hotkeys()),
             pystray.MenuItem("Sair", self._on_exit_click),
         )
         

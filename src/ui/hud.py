@@ -1,5 +1,6 @@
 import asyncio
 import ctypes
+from ctypes import wintypes
 import logging
 from typing import Optional
 
@@ -17,6 +18,19 @@ class MusicHUD:
         self.state = state
         self.page: Optional[ft.Page] = None
         self._hide_task: Optional[asyncio.Task] = None
+        self._window_width: int = 380
+        self._window_height: int = 120
+
+    def _calculate_window_size(self) -> tuple[int, int]:
+        """Calcula tamanho seguro do HUD para não sair da tela."""
+        screen_w, _ = self._get_screen_resolution()
+
+        # Mantem um HUD compacto e reduz em telas menores.
+        max_width = max(300, screen_w - 40)
+        width = min(380, max_width)
+        # Altura um pouco maior para comportar ultima linha (tempo/volume) sem recorte.
+        height = 138
+        return width, height
 
     def _get_screen_resolution(self) -> tuple[int, int]:
         """Obtém a resolução da tela principal."""
@@ -25,6 +39,20 @@ class MusicHUD:
             return user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
         except Exception:
             return 1920, 1080
+
+    def _get_work_area(self) -> tuple[int, int, int, int]:
+        """Obtém a área útil da tela (sem taskbar), com fallback para tela inteira."""
+        try:
+            rect = wintypes.RECT()
+            # SPI_GETWORKAREA = 0x0030
+            ok = ctypes.windll.user32.SystemParametersInfoW(0x0030, 0, ctypes.byref(rect), 0)
+            if ok:
+                return rect.left, rect.top, rect.right, rect.bottom
+        except Exception:
+            pass
+
+        screen_w, screen_h = self._get_screen_resolution()
+        return 0, 0, screen_w, screen_h
 
     def _force_window_stealth(self) -> None:
         """Arranca a barra de título e bordas via Win32 API."""
@@ -48,6 +76,10 @@ class MusicHUD:
         """Configuração da página Flet com todos os indicadores visuais."""
         self.page = page
         self.page.title = "Music HUD"
+        self.page.window.left = -32000
+        self.page.window.top = -32000
+        self.page.window.visible = False
+        self.page.window.opacity = 0.0
         
         self.page.window.bgcolor = "#00000000"
         self.page.bgcolor = "#00000000"
@@ -56,34 +88,36 @@ class MusicHUD:
         self.page.window.always_on_top = True
         self.page.window.skip_task_bar = True
         self.page.window.resizable = False
-        
-        width = 450
-        height = 160 
+        # Configurações de tamanho inicial (responsivo)
+        width, height = self._calculate_window_size()
+        self._window_width = width
+        self._window_height = height
         self.page.window.width = width
         self.page.window.height = height
         
-        screen_w, screen_h = self._get_screen_resolution()
-        target_left = screen_w - width - 20
-        target_top = screen_h - height - 60
+        # Posicionamento (canto inferior direito da area util)
+        work_left, work_top, work_right, work_bottom = self._get_work_area()
+        target_left = max(work_left + 10, work_right - width - 20)
+        target_top = max(work_top + 10, work_bottom - height - 20)
         
         self.page.window.left = target_left
         self.page.window.top = target_top
-        
-        self.page.window.opacity = 0.0
-        self.page.window.visible = True
+
+        self.page.update()
+
 
         # --- Elementos da UI ---
         self.cover = ft.Image(
             src=self.state.metadata.cover or "https://via.placeholder.com/80",
-            width=80,
-            height=80,
+            width=70,  # Reduzido
+            height=70, # Reduzido
             border_radius=10,
             fit=ft.BoxFit.COVER,
         )
 
         self.title = ft.Text(
             self.state.metadata.title or "Nenhuma música",
-            size=18,
+            size=16, # Reduzido
             weight=ft.FontWeight.BOLD,
             color=ft.Colors.WHITE,
             overflow=ft.TextOverflow.ELLIPSIS,
@@ -92,18 +126,20 @@ class MusicHUD:
 
         self.artist = ft.Text(
             self.state.metadata.artist or "Aguardando player...",
-            size=14,
+            size=13, # Reduzido
             color=ft.Colors.WHITE70,
             overflow=ft.TextOverflow.ELLIPSIS,
             max_lines=1,
         )
 
+        progress_width = max(180, width - 140)
         self.track_progress_bar = ft.ProgressBar(
             value=self.state.metadata.progress,
-            width=300,
+            width=progress_width,
             color=ft.Colors.AMBER,
             bgcolor=ft.Colors.WHITE10,
         )
+
 
         self.time_text = ft.Text(
             f"{self.state.metadata.position} / {self.state.metadata.duration}",
@@ -149,12 +185,13 @@ class MusicHUD:
                             ),
                         ],
                         alignment=ft.MainAxisAlignment.CENTER,
+                        spacing=4,
                         expand=True,
                     ),
                 ],
                 alignment=ft.MainAxisAlignment.START,
             ),
-            padding=15,
+            padding=ft.padding.symmetric(horizontal=15, vertical=10),
             bgcolor="#E6050505",
             border_radius=15,
             border=ft.border.all(1, ft.Colors.WHITE10),
@@ -173,11 +210,13 @@ class MusicHUD:
         await asyncio.sleep(0.5)
         self._force_window_stealth()
 
-    async def update_ui(self, major: bool = False) -> None:
-        """Sincroniza UI. Se major for True, desperta a visibilidade do HUD."""
+    async def update_ui(self, major: bool = False, category: str = "") -> None:
+        """Sincroniza UI. Respeita triggers e tempo de HUD configurados."""
         if not self.page:
             return
 
+        cfg = self.state.config.load()
+        
         self.title.value = self.state.metadata.title or "Nenhuma música"
         self.artist.value = self.state.metadata.artist or "Desconhecido"
         self.cover.src = self.state.metadata.cover or "https://via.placeholder.com/80"
@@ -195,28 +234,51 @@ class MusicHUD:
         self.volume_indicator.controls[1].value = f"{self.state.metadata.volume}%"
         self.volume_indicator.controls[0].color = ft.Colors.RED if self.state.is_muted else ft.Colors.WHITE54
 
-        # Apenas mostra o HUD (resetando o timer) se for uma mudança importante
+        # Determina se o HUD deve "acordar" com base nos triggers configurados
+        should_show = False
         if major:
-            await self.show_hud()
+            if category == "volume" and cfg.triggers.get("volume", True):
+                should_show = True
+            elif category == "metadata" and cfg.triggers.get("metadata", True):
+                should_show = True
+            elif category == "playback" and cfg.triggers.get("playback", True):
+                should_show = True
+
+        if should_show:
+            await self.show_hud(display_time=cfg.hud_display_time)
         else:
             self.page.update()
 
-
-    async def show_hud(self) -> None:
-        """Exibe o HUD."""
+    async def show_hud(self, display_time: int = 3) -> None:
+        """Exibe o HUD por um tempo determinado."""
         if not self.page:
             return
 
         if self._hide_task:
             self._hide_task.cancel()
 
+        # Recalcula dimensoes e posicao para garantir que o HUD nao "fuja" da tela
+        width, height = self._calculate_window_size()
+        self._window_width = width
+        self._window_height = height
+        self.page.window.width = width
+        self.page.window.height = height
+        work_left, work_top, work_right, work_bottom = self._get_work_area()
+
+        # Evita flash central: torna visivel fora da tela e reposiciona no mesmo ciclo.
+        self.page.window.left = -32000
+        self.page.window.top = -32000
+        self.page.window.visible = True
+        self.page.window.opacity = 0.0
+        self.page.window.left = max(work_left + 10, work_right - width - 20)
+        self.page.window.top = max(work_top + 10, work_bottom - height - 20)
         self.page.window.opacity = 1.0
         self.page.update()
         
-        self._force_window_stealth()
-        self._hide_task = asyncio.create_task(self._hide_after_delay(3))
+        self._hide_task = asyncio.create_task(self._hide_after_delay(display_time))
 
     async def _hide_after_delay(self, seconds: int) -> None:
+
         """Fade out."""
         try:
             await asyncio.sleep(seconds)
@@ -226,5 +288,7 @@ class MusicHUD:
                     self.page.window.opacity = i / steps
                     self.page.update()
                     await asyncio.sleep(0.01)
+                self.page.window.visible = False
+                self.page.update()
         except asyncio.CancelledError:
             pass

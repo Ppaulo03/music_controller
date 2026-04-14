@@ -52,16 +52,20 @@ class PlayerController:
         self._notify_ui()
 
     def adjust_volume(self, delta: int) -> None:
-        """Ajusta o volume de forma inteligente, lidando com o estado de mute sem duplicar comandos."""
+        """Ajusta o volume usando o 'passo' configurado pelo usuário."""
+        cfg = self.state.config.load()  # Recarrega para pegar mudanças recentes
+        step = cfg.volume_step
+        
+        # O delta vindo do atalho (ex: +1 ou -1) multiplicado pelo passo configurado
+        actual_delta = step if delta > 0 else -step
+
         if self.state.is_muted:
-            # Se estava mudo, o ajuste parte do último volume não-zero
             base_volume = self.state.last_non_zero_volume
             self.state.is_muted = False
         else:
             base_volume = self.state.metadata.volume
 
-        new_volume = max(0, min(100, base_volume + delta))
+        new_volume = max(0, min(100, base_volume + actual_delta))
         
-        # Envia apenas UM comando definitivo para evitar "pulos" de volume
         self.server.enqueue_command(f"setVolume {new_volume}")
         self._notify_ui()

@@ -3,12 +3,6 @@ import ctypes
 import logging
 import sys
 
-try:
-    # Força a sensibilidade ao DPI do Windows antes de qualquer renderização
-    ctypes.windll.shcore.SetProcessDpiAwareness(1)
-except Exception:
-    pass
-
 import flet as ft
 
 from src.core.hotkeys import HotkeyManager
@@ -16,7 +10,7 @@ from src.core.state import AppState
 from src.core.websocket import MusicWebSocketServer
 from src.services.player_controller import PlayerController
 from src.ui.hud import MusicHUD
-from src.ui.tray import MusicTray
+from src.ui.tray import SystemTrayManager
 
 # Configuração global de logging
 logging.basicConfig(
@@ -36,23 +30,32 @@ async def app_main(page: ft.Page) -> None:
     loop = asyncio.get_running_loop()
     exit_event = asyncio.Event()
 
-    # 1. Configura a saída via Tray
+    # 1. Inicializa o servidor WebSocket (Porta 8975)
+    server = MusicWebSocketServer(state, port=8975)
+
+    # 2. Inicializa a lógica de controle do player
+    controller = PlayerController(state, server)
+
+
+    # 3. Configura o gerenciador de atalhos globais
+    hotkeys = HotkeyManager(controller)
+    hotkeys.setup()
+
+    # 4. Configura os gatilhos da Tray
     def signal_exit():
         logger.info("Sinal de saída recebido pelo Tray.")
         loop.call_soon_threadsafe(exit_event.set)
 
-    tray = MusicTray(on_exit_callback=signal_exit)
+    def signal_reload():
+        # Recarrega hotkeys (que por sua vez recarrega o config.json)
+        hotkeys.setup()
+
+    tray = SystemTrayManager(
+        on_exit_callback=signal_exit,
+        on_open_settings=lambda: None, # O tray já faz o Popen internamente
+        on_reload_hotkeys=signal_reload
+    )
     tray.start()
-
-    # 2. Inicializa o servidor WebSocket (Porta 8975)
-    server = MusicWebSocketServer(state, port=8975)
-
-    # 3. Inicializa a lógica de controle do player
-    controller = PlayerController(state, server)
-
-    # 4. Configura o gerenciador de atalhos globais
-    hotkeys = HotkeyManager(controller)
-    hotkeys.setup()
 
     # 5. Inicializa o HUD visual
     hud = MusicHUD(state)
@@ -61,6 +64,7 @@ async def app_main(page: ft.Page) -> None:
     # 6. Inicia o servidor WebSocket
     logger.info("Iniciando Servidor WebSocket em background...")
     server_task = asyncio.create_task(server.start())
+
 
     # Aguarda o sinal de saída do Tray ou cancelamento
     try:
