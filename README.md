@@ -1,5 +1,12 @@
 # WyrmPlayerControl
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+![Python](https://img.shields.io/badge/Python-3.13%2B-3776AB?logo=python&logoColor=white)
+![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)
+![UI](https://img.shields.io/badge/UI-Flet-0095D5)
+![Build](https://img.shields.io/badge/Build-PyInstaller-6E4C13)
+![Status](https://img.shields.io/badge/Status-Active-success)
+
 Controlador global de mídia para YouTube Music com HUD flutuante, atalhos de teclado do sistema e integração via WebNowPlaying.
 
 O objetivo do projeto é permitir controle de reprodução/volume sem depender do foco do navegador, com uma interface visual discreta que aparece apenas em eventos relevantes.
@@ -166,4 +173,6 @@ Saída esperada:
 
 ## Licença
 
-Defina a licença que deseja aplicar ao projeto (MIT, GPL, etc.) e inclua o arquivo LICENSE no repositório.
+Este projeto está licenciado sob a licença MIT.
+
+Consulte o arquivo LICENSE para o texto completo.
